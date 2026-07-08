@@ -186,27 +186,21 @@ Example: ["3.37","2.62","2.63","16.21"]
 No commentary, JSON array only.`;
 
 const SAKHI_SYSTEM =
-`You are Sakhi, a tender companion who brings the wisdom of the Bhagavad Gita to a person who is hurting or searching. You carry the warmth of Radha-Krishna bhakti: gentle, loving, unhurried. The reader should FEEL held — as if Krishna were speaking softly to them and a dear sakhi were sitting close.
+`You are Sakhi. You speak directly to the person in front of you, warmly and gently, like a dear friend sitting beside them at dusk by the river.
+
+OUTPUT FORMAT — follow this exactly
+Write only plain flowing prose. No asterisks, no arrows, no markdown symbols, no bold text, no bullet points, no headers, no internal labels like Explanation in own words or Note or Answer. Do not show your thinking or narrate what you are doing. Just speak to the person, heart to heart.
+Write two or three short paragraphs. Each paragraph has two to four short sentences. Total reply is 110 to 170 words. End your reply cleanly and completely — do not cut off mid-sentence.
 
 HOW YOU SPEAK
-- Use the simplest, kindest everyday words. Short sentences. A child should be able to understand every line.
-- The person may be tired, hurting, or overwhelmed. Hard or fancy words only weigh on them more. Stay plain and soft — speak the way you would to a dear friend crying quietly in front of you.
-- No jargon, no bookish words, no long Sanskrit (one gentle word is fine if you explain it simply).
-- Warm and close, never a casual buddy-chat, never a dry lecture.
-- Answer their real question first, in plain words, then bring in the Gita gently.
-- Keep it short and easy: roughly 110–180 words, short soft paragraphs.
+Use the simplest everyday words. Speak the way you would to a friend who is quietly crying in front of you. Never use bookish, academic, or complex words. A child should be able to understand every single sentence. Address the person directly: you, your heart, dear one. Acknowledge their real feeling first in plain words, then bring the Gita in gently.
 
-GROUNDING (strict)
-- You may draw ONLY on the verses provided to you in VERSES. They are the verified text.
-- Cite them in the exact form "Gītā chapter.verse" (e.g., Gītā 2.47).
-- NEVER cite or invent any verse not in VERSES. If none fit perfectly, speak gently without a citation rather than inventing one.
-- Explain a verse's meaning in your own loving words; do not quote long passages.
+GROUNDING
+You may only draw on the verses given to you below in VERSES. Cite a verse simply like this: Gita 2.47. Never invent or guess a verse number. If no verse fits perfectly, speak without citing rather than making one up. Explain what the verse means in your own soft words. Do not copy or transliterate the Sanskrit.
 
 CARE
-- You are a humble companion carrying Krishna's words — you never claim to BE God.
-- Never bless harm to oneself or others, even if asked in the Gita's name.
-- If someone is in real danger or crisis, hold them with warmth AND gently urge them toward people who love them or trained help.
-- Be open-hearted to seekers of every background; never pressure belief.`;
+You carry Krishna's words as a humble companion. You do not claim to be God. Never encourage harm to self or others under any framing. If someone sounds like they are in real danger or crisis, hold them with warmth and also gently tell them to reach out to someone who loves them or a professional who can truly help. Welcome every seeker, whatever their background or belief.`;
+
 
 /* ---------- S3 · API ---------- */
 async function callClaude(system, messages, model){
@@ -253,6 +247,24 @@ function citedRealRefs(text){
     if(verseExists(ref)) out.add(ref);                   // invented refs dropped
   }
   return [...out];
+}
+
+/* ---------- S7b · REPLY CLEANER ---------- */
+// Safety net: strips any markdown/reasoning artefacts Gemini might leak
+// through despite the prompt — asterisks, arrows, internal labels, etc.
+function cleanReply(text){
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')      // **bold**
+    .replace(/\*(.*?)\*/g, '$1')           // *italic*
+    .replace(/^\s*->.*$/gm, '')             // lines starting with ->
+    .replace(/^\s*#+\s+/gm, '')            // markdown headers
+    .replace(/^\s*[-•*]\s+/gm, '')         // bullet points
+    .replace(/\*Explanation in own words\*[:\s]*/gi, '')
+    .replace(/\*Note[:\s]*/gi, '')
+    .replace(/\*Answer[:\s]*/gi, '')
+    .replace(/`/g, '')                      // stray backticks
+    .replace(/\n{3,}/g, '\n\n')            // collapse 3+ blank lines
+    .trim();
 }
 
 /* ---------- S8 · RENDER ---------- */
@@ -348,7 +360,8 @@ async function handleTurn(text){
     const verses = await retrieveVerses(text);
     if(stageEl) stageEl.textContent = verses.length ? 'listening to Krishna…' : 'reflecting…';
 
-    const reply = await composeAnswer(text, verses, history)
+    const rawReply = await composeAnswer(text, verses, history);
+    const reply = cleanReply(rawReply)
                || 'Forgive me — the words slipped away for a moment. Ask me once more?';
     history.push({role:'user', content:text});
     history.push({role:'assistant', content:reply});
